@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap");
 
 * {
   margin: 0;
@@ -6,8 +6,36 @@
   box-sizing: border-box;
 }
 
+html,
 body {
-  background: linear-gradient(135deg, #0f172a 0%, #1e40af 100%);
-  font-family: 'Inter', sans-serif;
+  height: 100%;
+}
+
+body {
+  background: #0f172a;
+  font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
   color: #fff;
+}
+
+/* WhatsApp-style sidebar behavior */
+.sidebar {
+  width: 320px;
+  background: #111b21;
+  border-right: 1px solid #222e35;
+  color: #e9edef;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+@media screen and (max-width: 768px) {
+  .sidebar {
+    position: absolute;
+    z-index: 9;
+    left: -100%;
+    transition: left 0.25s ease-in-out;
+  }
+  .sidebar.open {
+    left: 0;
+  }
 }

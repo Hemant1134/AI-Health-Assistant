@@ -11,12 +11,16 @@ import { sendMessage } from "../lib/api";
 import { getSessionId } from "../lib/session";
 
 export default function ChatWindow() {
-  const [messages, setMessages] = useState([]);
+  const [messages, setMessages] = useState([
+    {
+      sender: "ai",
+      text: "👋 Hi, I’m your Health Assistant. What symptoms are you facing?",
+    },
+  ]);
   const [options, setOptions] = useState([]);
   const [formSchema, setFormSchema] = useState(null);
   const [typing, setTyping] = useState(false);
   const ref = useRef(null);
-  const [state, setState] = useState({});
 
   useEffect(() => {
     if (ref.current) ref.current.scrollTop = ref.current.scrollHeight;
@@ -26,11 +30,10 @@ export default function ChatWindow() {
     setMessages((m) => [...m, { sender: "user", text: input }]);
     setTyping(true);
 
-    const res = await sendMessage(input, state, getSessionId());
+    const res = await sendMessage(input, {}, getSessionId());
     setTyping(false);
 
     if (res.reply) setMessages((m) => [...m, { sender: "ai", text: res.reply }]);
-    if (res.update) setState((p) => ({ ...p, ...res.update }));
 
     setOptions(res.options || []);
     setFormSchema(res.type === "form" ? res.form : null);
@@ -46,21 +49,25 @@ export default function ChatWindow() {
         flexDirection: "column",
       }}
     >
+      {/* chat area */}
       <Box
         ref={ref}
         sx={{
           flex: 1,
           overflowY: "auto",
-          p: 2,
-          backgroundImage: "url('https://i.imgur.com/hNGYw9V.png')",
-          backgroundSize: "cover",
-          backgroundRepeat: "repeat"
+          p: 3,
         }}
       >
-        {messages.map((m, i) => <ChatBubble key={i} sender={m.sender} text={m.text} />)}
+        {messages.map((m, i) => (
+          <ChatBubble key={i} sender={m.sender} text={m.text} />
+        ))}
         {typing && <TypingDots />}
-        {options.length > 0 && <Options options={options} onSelect={handleUserInput} />}
-        {formSchema && <DynamicForm schema={formSchema} onSubmit={handleUserInput} />}
+        {options.length > 0 && (
+          <Options options={options} onSelect={handleUserInput} />
+        )}
+        {formSchema && (
+          <DynamicForm schema={formSchema} onSubmit={handleUserInput} />
+        )}
       </Box>
 
       <MessageInput onSend={handleUserInput} />

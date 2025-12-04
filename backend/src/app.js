@@ -8,7 +8,13 @@ const historyRoutes = require("./routes/history.routes");
 
 const app = express();
 
-app.use(cors());
+app.use(cors({
+  origin: "*",
+  methods: "GET,POST,PUT,DELETE",
+  allowedHeaders: "Content-Type, Authorization"
+}));
+
+
 app.use(express.json());
 
 // Attach sessionId for every request
