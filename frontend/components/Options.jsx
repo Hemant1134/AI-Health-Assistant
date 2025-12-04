@@ -6,8 +6,7 @@ export default function Options({ options, onSelect }) {
   return (
     <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1, mt: 1 }}>
       {options.map((opt, i) => (
-        <Button
-          key={i}
+        <Button key={i}
           component={motion.button}
           whileTap={{ scale: 0.92 }}
           variant="outlined"
@@ -20,9 +19,7 @@ export default function Options({ options, onSelect }) {
             px: 1.6,
             py: 0.6,
             borderRadius: 2,
-            "&:hover": {
-              bgcolor: "primary.main",
-            }
+            "&:hover": { bgcolor: "primary.main" }
           }}
         >
           {opt}

@@ -4,6 +4,7 @@ const cors = require("cors");
 const connectDB = require("./db/connection");
 const chatRoutes = require("./routes/chat");
 const sessionMiddleware = require("./middleware/session.middleware");
+const historyRoutes = require("./routes/history.routes");
 
 const app = express();
 
@@ -15,6 +16,7 @@ app.use(sessionMiddleware);
 
 // Routes
 app.use("/api/chat", chatRoutes);
+app.use("/api/history", historyRoutes);
 
 // Health check
 app.get("/health", (req, res) => res.json({ ok: true }));

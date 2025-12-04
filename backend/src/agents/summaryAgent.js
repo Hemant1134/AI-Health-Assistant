@@ -1,44 +1,24 @@
 const { sendChatPrompt } = require("../utils/ai");
 
-/**
- * summaryAgent(state)
- * Creates a clinical-style summary and risk level.
- */
 module.exports = async function summaryAgent(state = {}) {
-  const personal = state.personal || {};
-  const answers = state.answers || {};
-  const symptoms = state.symptoms || [];
+  const p = state.personal || {};
+  const a = state.answers || {};
+  const s = state.symptoms || [];
 
-  let summary = `Patient ${personal.name || ""}, age ${personal.age || "N/A"}, main symptom: ${symptoms[0] || "N/A"}.`;
-
-  if (answers.fever) {
-    summary += ` Fever for ${answers.fever.duration || "unknown duration"}, highest temp ${answers.fever.temperature || "unknown"}, meds: ${answers.fever.meds || "N/A"}.`;
-  }
-  if (answers.otherSymptoms && answers.otherSymptoms !== "none") {
-    summary += ` Additional symptoms: ${answers.otherSymptoms}.`;
-  }
+  let summary = `Patient ${p.name}, age ${p.age}, main symptom: ${s[0]}.`;
+  if (a.fever) summary += ` Fever since ${a.fever.duration}, max temp ${a.fever.temperature}, meds ${a.fever.meds}.`;
+  if (a.otherSymptoms && a.otherSymptoms !== "none") summary += ` Other symptoms: ${a.otherSymptoms}.`;
 
   let risk = "mild";
-  if (answers.fever && answers.fever.temperature && /102|>102/i.test(answers.fever.temperature)) {
-    risk = "moderate";
-  }
+  if (a.fever?.temperature?.includes("102")) risk = "moderate";
 
-  // Try to refine with Gemini if available
   if (process.env.GEMINI_API_KEY) {
     try {
-      const sys = `
-You are a medical assistant. Summarize the patient's condition in 1–2 short sentences.
-No diagnosis, no treatment, just a neutral clinical description.
-Use plain text, no bullet points.
-      `.trim();
-
-      const usr = `State: ${JSON.stringify({ personal, answers, symptoms })}`;
+      const sys = `Summarize patient in 1 line, no diagnosis, no treatment.`;
+      const usr = JSON.stringify({ p, a, s });
       const txt = await sendChatPrompt(sys, usr);
-      if (txt && txt.length < 600) summary = txt.trim();
-    } catch (e) {
-      console.warn("Summary Gemini error:", e.message);
-    }
+      if (txt) summary = txt.trim();
+    } catch {}
   }
-
   return { summary, riskLevel: risk };
 };

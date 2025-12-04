@@ -3,9 +3,15 @@
 import { Box } from "@mui/material";
 import ChatContainer from "../components/ChatContainer";
 
-export default function Home() {
+export default function Page() {
   return (
-    <Box sx={{ height: "100vh", display: "flex", justifyContent: "center", alignItems: "center", p: 2 }}>
+    <Box sx={{
+      height: "100vh",
+      display: "flex",
+      justifyContent: "center",
+      alignItems: "center",
+      p: 2
+    }}>
       <ChatContainer />
     </Box>
   );

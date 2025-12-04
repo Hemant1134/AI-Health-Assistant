@@ -1,21 +1,21 @@
 "use client";
+
 import { Box, Typography } from "@mui/material";
 import { motion } from "framer-motion";
 
 export default function ChatBubble({ sender, text }) {
   const isAI = sender === "ai";
 
-  // 🛠 Convert object or array messages into readable text
-  const formattedText =
-    typeof text === "string"
-      ? text
-      : Array.isArray(text)
-        ? text.join(", ")
-        : typeof text === "object"
-          ? Object.entries(text)
-              .map(([key, val]) => `${key}: ${val}`)
-              .join("\n")
-          : ""; // fallback
+  const formatText = (val) => {
+    if (typeof val === "string") return val;
+    if (Array.isArray(val)) return val.join(", ");
+    if (val && typeof val === "object") {
+      return Object.entries(val)
+        .map(([k, v]) => `${k}: ${v}`)
+        .join("\n");
+    }
+    return String(val ?? "");
+  };
 
   return (
     <Box
@@ -33,17 +33,17 @@ export default function ChatBubble({ sender, text }) {
         sx={{
           p: 1.2,
           px: 2,
-          maxWidth: "80%",
+          maxWidth: "82%",
           borderRadius: isAI ? "16px 16px 16px 4px" : "16px 16px 4px 16px",
-          bgcolor: isAI ? "rgba(255,255,255,0.12)" : "primary.main",
+          bgcolor: isAI ? "rgba(30,64,175,0.7)" : "primary.main",
           backdropFilter: "blur(8px)",
           color: "#fff",
           fontSize: 14,
           lineHeight: 1.4,
-          whiteSpace: "pre-wrap", // allow multiple lines
+          whiteSpace: "pre-wrap",
         }}
       >
-        {formattedText}
+        {formatText(text)}
       </Typography>
     </Box>
   );

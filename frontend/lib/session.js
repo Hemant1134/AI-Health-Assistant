@@ -1,7 +1,8 @@
 export function getSessionId() {
+  if (typeof window === "undefined") return "";
   let sid = localStorage.getItem("sessionId");
   if (!sid) {
-    sid = Math.random().toString(36).substring(2);
+    sid = crypto.randomUUID();
     localStorage.setItem("sessionId", sid);
   }
   return sid;

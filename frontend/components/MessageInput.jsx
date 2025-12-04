@@ -6,7 +6,7 @@ import { useState } from "react";
 export default function MessageInput({ onSend }) {
   const [input, setInput] = useState("");
 
-  const handleSend = () => {
+  const send = () => {
     if (!input.trim()) return;
     onSend(input.trim());
     setInput("");
@@ -16,10 +16,10 @@ export default function MessageInput({ onSend }) {
     <Box sx={{ display: "flex", p: 1.3, borderTop: "1px solid rgba(255,255,255,0.1)" }}>
       <TextField
         fullWidth
-        value={input}
         placeholder="Describe your symptoms..."
+        value={input}
         onChange={(e) => setInput(e.target.value)}
-        onKeyDown={(e) => { if (e.key === "Enter") handleSend(); }}
+        onKeyDown={(e) => e.key === "Enter" && send()}
         variant="outlined"
         size="small"
         sx={{
@@ -30,7 +30,7 @@ export default function MessageInput({ onSend }) {
           },
         }}
       />
-      <IconButton color="primary" onClick={handleSend}>
+      <IconButton color="primary" onClick={send}>
         <SendIcon />
       </IconButton>
     </Box>
