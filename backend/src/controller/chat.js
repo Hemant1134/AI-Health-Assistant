@@ -1,90 +1,113 @@
-const redis = require("../lib/redisClient");
-const { v4: uuidv4 } = require("uuid");
+const { getState, saveState } = require("../utils/state");
+const { normalizeResponse } = require("../utils/validation");
 const symptomAgent = require("../agents/symptomAgent");
-const formAgent = require("../agents/formAgent");
+const summaryAgent = require("../agents/summaryAgent");
 const appointmentAgent = require("../agents/appointmentAgent");
 const Patient = require("../models/patient");
+const Appointment = require("../models/appointment");
 
-const SESSION_TTL = parseInt(process.env.SESSION_TTL_SECONDS || "86400", 10);
-
-function makeSafe(resp) {
-  return {
-    type: (resp && resp.type) || "message",
-    reply: (resp && resp.reply) || "Sorry, I didn't understand.",
-    options: Array.isArray(resp && resp.options) ? resp.options : [],
-    update: (resp && resp.update) || {}
-  };
-}
-
-async function loadState(sessionId) {
-  if (!sessionId) return null;
-  const raw = await redis.get(`patientState:${sessionId}`);
-  if (!raw) return null;
-  try { return JSON.parse(raw); } catch { return null; }
-}
-
-async function saveState(sessionId, state) {
-  await redis.setEx(`patientState:${sessionId}`, SESSION_TTL, JSON.stringify(state));
-}
+// Allowed personal fields (Option A)
+const ALLOWED_PERSONAL_FIELDS = [
+  "name",
+  "age",
+  "gender",
+  "city",
+  "chronic_conditions",
+  "allergies",
+  "emergency_contact"
+];
 
 exports.handleChat = async (req, res) => {
   try {
-    // body: { message, sessionId }
-    const { message, sessionId: incomingSession } = req.body;
+    const sessionId = req.sessionId;
+    const { message } = req.body;
 
-    // ensure session
-    const sessionId = incomingSession || uuidv4();
+    let state = await getState(sessionId);
+    state = state || {};
+    state.symptoms = state.symptoms || [];
+    state.answers = state.answers || {};
+    state.personal = state.personal || {};
+    state.asked = state.asked || [];
+    state.completed = !!state.completed;
+    if (patientState.profileComplete) {
+      return res.json({
+        type: "done",
+        reply: "You’re already registered. Start a new chat or get appointment ❤️",
+        options: ["Start new chat", "Book Appointment"]
+      });
+    }
 
-    // load
-    let state = (await loadState(sessionId)) || {
-      asked: [],
-      answers: {},
-      symptoms: [],
-      personal: {},
-      step: "greeting",
-      completed: false,
-      createdAt: Date.now()
-    };
-
-    // if message is object => treat as form submission
-    let agentResp;
+    // CASE 1: form submission (personal details)
     if (message && typeof message === "object" && !Array.isArray(message)) {
-      agentResp = await formAgent(message, state);
-      // merge agentResp.update into state
-      state = { ...state, ...agentResp.update, ...{ answers: { ...state.answers, ...(agentResp.update.answers || {}) } } };
-      // optionally persist patient to DB
-      await saveState(sessionId, state);
-      // if profile complete, save to Mongo
-      if (state.completed) {
-        await Patient.create({ sessionId, data: state });
+      // Filter only allowed fields
+      const incoming = message || {};
+      const cleaned = {};
+      for (const key of ALLOWED_PERSONAL_FIELDS) {
+        if (incoming[key] !== undefined && incoming[key] !== null && incoming[key] !== "") {
+          cleaned[key] = String(incoming[key]);
+        }
       }
-      return res.json({ sessionId, ...makeSafe(agentResp) });
+
+      state.personal = { ...state.personal, ...cleaned };
+      state.completed = true;
+      state.step = "summary";
+
+      // Generate summary & appointment
+      const summaryRes = await summaryAgent(state);
+      state.summary = summaryRes.summary;
+      state.riskLevel = summaryRes.riskLevel;
+
+      const apptRes = await appointmentAgent(state);
+      state.recommendation = apptRes;
+
+      // Save patient + appointment
+      const patientDoc = await Patient.create({
+        sessionId,
+        personal: state.personal,
+        symptoms: state.answers,
+        summary: state.summary,
+        riskLevel: state.riskLevel
+      });
+
+      await Appointment.create({
+        patientId: patientDoc._id,
+        department: apptRes.department,
+        doctor: apptRes.doctor,
+        date: apptRes.date,
+        time: apptRes.time,
+        meta: apptRes
+      });
+
+      await saveState(sessionId, state);
+
+      const resp = {
+        type: "message",
+        reply:
+          `Thanks ${state.personal.name || ""}. I’ve created your health profile.\n\n` +
+          `Summary: ${state.summary}\n` +
+          `Risk level: ${state.riskLevel.toUpperCase()}\n` +
+          `Recommended department: ${apptRes.department}\n` +
+          `Suggested time: ${apptRes.date} at ${apptRes.time}`,
+        options: ["Start new chat"],
+        update: state
+      };
+
+      return res.json({ sessionId, ...normalizeResponse(resp) });
     }
 
-    // normal text
-    agentResp = await symptomAgent(String(message || ""), state);
+    // CASE 2: normal text → symptomAgent
+    const text = (message || "").toString();
+    const agentResp = await symptomAgent(text, state);
 
-    // process returned update into our state
-    if (agentResp && agentResp.update && typeof agentResp.update === "object") {
-      // merge update fields shallowly
-      state = { ...state, ...agentResp.update };
-      // ensure arrays/objects preserved
-      state.asked = Array.isArray(state.asked) ? state.asked : [];
-      state.symptoms = Array.isArray(state.symptoms) ? state.symptoms : state.symptoms || [];
-      state.answers = state.answers || {};
-    }
+    const updatedState = { ...state, ...(agentResp.update || {}) };
+    await saveState(sessionId, updatedState);
 
-    // Save state to Redis
-    await saveState(sessionId, state);
+    const safeResp = normalizeResponse(agentResp);
+    safeResp.update = updatedState;
 
-    // If agent suggests form or appointment and wants DB save, do that
-    if (agentResp.type === "form" && state.completed) {
-      await Patient.create({ sessionId, data: state });
-    }
-
-    return res.json({ sessionId, ...makeSafe(agentResp) });
+    return res.json({ sessionId, ...safeResp });
   } catch (err) {
-    console.error("CHAT CONTROLLER ERROR:", err);
-    return res.status(500).json({ error: "Server error", details: err.message });
+    console.error("CHAT ERROR:", err);
+    res.status(500).json({ error: "Server error", details: err.message });
   }
 };

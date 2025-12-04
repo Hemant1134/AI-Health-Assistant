@@ -1,183 +1,309 @@
 const { sendChatPrompt } = require("../utils/ai");
 
+// Allowed personal fields for Option A
+const ALLOWED_FIELDS = [
+  "name",
+  "age",
+  "gender",
+  "city",
+  "chronic_conditions",
+  "allergies",
+  "emergency_contact",
+];
+
 /**
- * state shape:
- * { asked:[], answers:{}, symptoms:[], personal:{}, step, completed }
+ * symptomAgent(text, state)
+ * Deterministic symptom flow + AI-based personal form generation.
  */
 module.exports = async function symptomAgent(text, state = {}) {
+  state.step = state.step || "symptom";
   state.asked = Array.isArray(state.asked) ? state.asked : [];
-  state.answers = state.answers || {};
   state.symptoms = Array.isArray(state.symptoms) ? state.symptoms : [];
+  state.answers = state.answers || {};
   state.personal = state.personal || {};
-  state.step = state.step || "greeting";
+  state.completed = !!state.completed;
+  state.personalFormGenerated = !!state.personalFormGenerated;
 
   const t = (text || "").toLowerCase().trim();
+  const askOnce = (key) => {
+    if (!state.asked.includes(key)) state.asked.push(key);
+  };
 
-  // helper
-  const pushAsked = (q) => { if (!state.asked.includes(q)) state.asked.push(q); };
-
-  // STEP: greeting -> ask main symptom
+  // STEP 1: main symptom
   if (!state.asked.includes("main_symptom")) {
-    pushAsked("main_symptom");
+    askOnce("main_symptom");
     return {
       type: "message",
       reply: "Hi — I'm your health assistant. What is your main symptom?",
-      options: ["Fever", "Cough", "Cold", "Headache", "Stomach Pain", "Other"],
-      update: state
+      options: [
+        "Fever",
+        "Cough",
+        "Cold",
+        "Headache",
+        "Stomach pain",
+        "Body pain",
+        "Breathing issue",
+        "Other",
+      ],
+      update: state,
     };
   }
 
-  // detect symptom if user typed it or selected option
-  if (!state.symptoms.length) {
+  // detect symptom if none yet
+  if (!state.symptoms.length && t) {
     const detected = detectSymptom(t);
-    if (detected) {
-      state.symptoms.push(detected);
-      state.answers[detected] = {};
-    } else if (t && t !== "other") {
-      state.symptoms.push("other");
-      state.answers.other = { description: text };
-    }
+    state.symptoms.push(detected);
+    state.answers[detected] = state.answers[detected] || {};
   }
 
-  const main = state.symptoms[0];
+  const main = state.symptoms[0]; // drive flow by first symptom
 
-  // FEVER FLOW
+  // --- FEVER FLOW EXAMPLE ---
   if (main === "fever") {
+    const feverAns = state.answers.fever || {};
+
     // duration
     if (!state.asked.includes("fever_duration")) {
-      pushAsked("fever_duration");
+      askOnce("fever_duration");
       return {
         type: "message",
         reply: "How long have you had the fever?",
-        options: ["<24 hours", "1–3 days", ">3 days", "Not sure"],
-        update: state
+        options: ["< 24 hours", "1–3 days", "> 3 days", "Not sure"],
+        update: state,
       };
     }
-    if (!state.answers.fever.duration && t) {
-      state.answers.fever.duration = text;
+    if (!feverAns.duration && t && !isBotQuestion("fever_duration", state)) {
+      feverAns.duration = text;
     }
 
     // temperature
     if (!state.asked.includes("fever_temperature")) {
-      pushAsked("fever_temperature");
+      askOnce("fever_temperature");
+      state.answers.fever = feverAns;
       return {
         type: "message",
-        reply: "What is the highest temperature you recorded (°F)?",
-        options: ["<99°F", "99–100.9°F", "101–102°F", ">102°F", "I don't know"],
-        update: state
+        reply: "What is your highest recorded temperature?",
+        options: [
+          "< 99°F",
+          "99–100.9°F",
+          "101–102°F",
+          "> 102°F",
+          "Not measured",
+        ],
+        update: state,
       };
     }
-    if (!state.answers.fever.temperature && t) {
-      state.answers.fever.temperature = text;
+    if (
+      !feverAns.temperature &&
+      t &&
+      !isBotQuestion("fever_temperature", state)
+    ) {
+      feverAns.temperature = text;
     }
 
-    // meds
+    // medication
     if (!state.asked.includes("fever_meds")) {
-      pushAsked("fever_meds");
+      askOnce("fever_meds");
+      state.answers.fever = feverAns;
       return {
         type: "message",
         reply: "Have you taken any medication for the fever?",
-        options: ["Yes, it helped", "Yes, no improvement", "No"],
-        update: state
+        options: ["Yes, and it helped", "Yes, no improvement", "No"],
+        update: state,
       };
     }
-    if (!state.answers.fever.meds && t) {
-      state.answers.fever.meds = text;
+    if (!feverAns.meds && t && !isBotQuestion("fever_meds", state)) {
+      feverAns.meds = text;
     }
 
-    // other symptoms once only
-    if (!state.asked.includes("other_symptoms")) {
-      pushAsked("other_symptoms");
-      return {
-        type: "message",
-        reply: "Do you have any other symptoms?",
-        options: ["Cold/runny nose", "Cough", "Shortness of breath", "Loss of smell/taste", "No"],
-        update: state
-      };
-    }
-    if (!state.answers.otherSymptoms && t) {
-      state.answers.otherSymptoms = text;
-      if (t === "no" || t === "no other symptoms" || t === "none") {
-        state.answers.otherSymptoms = "none";
-      }
-    }
+    state.answers.fever = feverAns;
+  }
 
-    // after collecting fever details -> ask personal details (only once)
-    if (!state.asked.includes("name")) {
-      pushAsked("name");
-      return { type: "message", reply: "May I have your full name?", update: state };
-    }
-    if (!state.personal.name && t) state.personal.name = text;
-
-    if (!state.asked.includes("age")) {
-      pushAsked("age");
-      return { type: "message", reply: "What is your age?", update: state };
-    }
-    if (!state.personal.age && t) state.personal.age = text;
-
-    if (!state.asked.includes("gender")) {
-      pushAsked("gender");
-      return { type: "message", reply: "What is your gender?", options: ["Male", "Female", "Other"], update: state };
-    }
-    if (!state.personal.gender && t) state.personal.gender = text;
-
-    // ready to complete
-    state.completed = true;
-
-    // Optionally let Gemini summarize the case (non-blocking if Gemini config missing)
-    let summary = `Collected: symptom=fever, duration=${state.answers.fever.duration || ""}, temp=${state.answers.fever.temperature || ""}`;
-    try {
-      if (process.env.GEMINI_API_KEY) {
-        const system = `You are a medical assistant. Create a 1-line summary for the clinician of the patient's condition using only plain text.`;
-        const textPrompt = `Patient: ${JSON.stringify(state)}`;
-        const s = await sendChatPrompt(system, textPrompt);
-        if (s && s.length < 500) summary = s.trim();
-      }
-    } catch (e) {
-      console.warn("Gemini summarization failed:", e.message);
-    }
-
+  // --- GENERIC OTHER SYMPTOMS QUESTION (once) ---
+  if (!state.asked.includes("other_symptoms")) {
+    askOnce("other_symptoms");
     return {
       type: "message",
-      reply: `Thanks — I have captured the details. ${summary}`,
-      options: ["Show profile", "Book appointment", "Finish"],
-      update: state
+      reply: "Do you have any other symptoms?",
+      options: [
+        "Cold",
+        "Cough",
+        "Headache",
+        "Body pain",
+        "Breathing issue",
+        "No",
+      ],
+      update: state,
     };
   }
 
-  // FALLBACK generic flow for other symptoms or 'other'
-  // Ask "other symptom details" if not asked
-  if (!state.asked.includes("other_desc")) {
-    pushAsked("other_desc");
-    return { type: "message", reply: "Please describe the symptom in brief.", update: state };
-  }
-  if (!state.answers.other && t) {
-    state.answers.other = text;
+  if (
+    !state.answers.otherSymptoms &&
+    t &&
+    !isBotQuestion("other_symptoms", state)
+  ) {
+    state.answers.otherSymptoms = t.startsWith("no") ? "none" : text;
   }
 
-  // then personal details same as above
-  if (!state.asked.includes("name")) {
-    pushAsked("name");
-    return { type: "message", reply: "May I have your full name?", update: state };
-  }
-  if (!state.personal.name && t) state.personal.name = text;
+  // At this point, we assume symptom intake is done → move to personal
+  if (!state.personalFormGenerated) {
+    state.personalFormGenerated = true;
+    state.step = "personal";
 
-  if (!state.asked.includes("age")) {
-    pushAsked("age");
-    return { type: "message", reply: "What is your age?", update: state };
-  }
-  if (!state.personal.age && t) state.personal.age = text;
+    // ask AI which personal fields we need
+    const form = await generatePersonalForm(state);
+    state.personalForm = form;
 
-  state.completed = true;
-  return { type: "message", reply: "Thank you — profile completed.", options: ["Show profile", "Book appointment"], update: state };
+    return {
+      type: "form",
+      reply: "To complete your health profile, please fill these details.",
+      form,
+      update: state,
+    };
+  }
+
+  // fallback
+  return {
+    type: "message",
+    reply:
+      "Thanks, I’ve recorded your symptoms. Please fill your details to continue.",
+    update: state,
+  };
 };
 
+/**
+ * Use Gemini to choose which personal fields to ask from whitelist ALLOWED_FIELDS.
+ * If Gemini fails, fallback to name+age+gender+city.
+ */
+async function generatePersonalForm(state) {
+  const fallbackFields = ["name", "age", "gender", "city"];
+
+  if (!process.env.GEMINI_API_KEY) {
+    return buildFormFromFieldNames(fallbackFields);
+  }
+
+  try {
+    const systemPrompt = `
+You are helping design a patient intake form for a clinic.
+You must choose which personal fields are required based on symptoms and risk.
+You can ONLY choose from this whitelist (do not invent new fields):
+${ALLOWED_FIELDS.join(", ")}
+
+Rules:
+- For mild fever or cold: ask at least name, age, gender.
+- For breathing issue or stomach pain: also ask emergency_contact.
+- You may also include chronic_conditions or allergies if relevant.
+- NEVER ask for phone, email, ID numbers, address, or any field outside the whitelist.
+Return ONLY valid JSON like:
+{"fields":[{"name":"name","required":true},{"name":"age","required":true}]}.
+No extra keys, no comments, no text outside JSON.
+    `.trim();
+
+    const userPrompt = `State: ${JSON.stringify({
+      symptoms: state.symptoms,
+      answers: state.answers,
+    })}`;
+
+    const raw = await sendChatPrompt(systemPrompt, userPrompt);
+    let parsed;
+
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      const m = raw.match(/\{[\s\S]*\}/m);
+      if (m) parsed = JSON.parse(m[0]);
+    }
+
+    if (
+      !parsed ||
+      !Array.isArray(parsed.fields) ||
+      parsed.fields.length === 0
+    ) {
+      return buildFormFromFieldNames(fallbackFields);
+    }
+
+    // filter only allowed fields
+    const selected = parsed.fields
+      .map((f) => f.name)
+      .filter((name) => ALLOWED_FIELDS.includes(name));
+
+    if (!selected.length) {
+      return buildFormFromFieldNames(fallbackFields);
+    }
+
+    return buildFormFromFieldNames(selected, parsed.fields);
+  } catch (err) {
+    console.warn("generatePersonalForm error:", err.message);
+    return buildFormFromFieldNames(fallbackFields);
+  }
+}
+
+/**
+ * Build a form schema from names.
+ */
+function buildFormFromFieldNames(names, rawFields) {
+  const fields = names.map((name) => {
+    const base = rawFields?.find((f) => f.name === name) || {};
+    const required = base.required !== undefined ? !!base.required : true;
+    const label = labelFor(name);
+    const type = typeFor(name);
+    const options = name === "gender" ? ["Male", "Female", "Other"] : undefined;
+
+    return { name, label, type, required, ...(options ? { options } : {}) };
+  });
+
+  return {
+    title: "Patient Details",
+    fields,
+  };
+}
+
+function labelFor(name) {
+  switch (name) {
+    case "name":
+      return "Full Name";
+    case "age":
+      return "Age";
+    case "gender":
+      return "Gender";
+    case "city":
+      return "City";
+    case "chronic_conditions":
+      return "Chronic Conditions (if any)";
+    case "allergies":
+      return "Allergies (if any)";
+    case "emergency_contact":
+      return "Emergency Contact";
+    default:
+      return name;
+  }
+}
+
+function typeFor(name) {
+  switch (name) {
+    case "age":
+      return "number";
+    case "gender":
+      return "select";
+    default:
+      return "text";
+  }
+}
+
 function detectSymptom(t) {
-  if (!t) return null;
+  if (!t) return "other";
   if (t.includes("fever")) return "fever";
+  if (t.includes("cold") || t.includes("runny") || t.includes("sneeze"))
+    return "cold";
   if (t.includes("cough")) return "cough";
-  if (t.includes("cold") || t.includes("runny") || t.includes("sneeze")) return "cold";
-  if (t.includes("headache")) return "headache";
-  if (t.includes("stomach") || t.includes("vomit")) return "stomach";
-  return null;
+  if (t.includes("head")) return "headache";
+  if (t.includes("stomach") || t.includes("vomit")) return "stomach_pain";
+  if (t.includes("body") || t.includes("muscle")) return "body_pain";
+  if (t.includes("breath")) return "breathing_issue";
+  return "other";
+}
+
+// very simple placeholder; we’re not using previous-question-text check deeply here
+function isBotQuestion(_key, _state) {
+  return false;
 }

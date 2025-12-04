@@ -1,12 +1,24 @@
-module.exports = async function appointmentAgent(context = {}, state = {}) {
-  // Simple mocked appointment suggestion
+/**
+ * appointmentAgent(state)
+ * Simple rule-based recommendation.
+ */
+module.exports = async function appointmentAgent(state = {}) {
+  const symptoms = state.symptoms || [];
+  const main = symptoms[0] || "general";
+
+  let department = "General Medicine";
+  if (main === "breathing_issue") department = "Pulmonology";
+  if (main === "stomach_pain") department = "Gastroenterology";
+  if (main === "headache") department = "Neurology";
+
+  const date = new Date(Date.now() + 24 * 60 * 60 * 1000);
+  const formattedDate = date.toISOString().slice(0, 10);
+
   return {
-    type: "appointment",
-    department: "General Medicine",
-    doctor: "Dr. Sharma",
-    date: new Date(Date.now() + 24*60*60*1000).toISOString().slice(0,10),
+    department,
+    doctor: "Duty Doctor",
+    date: formattedDate,
     time: "10:00 AM",
-    reply: "Suggested appointment with General Medicine.",
-    update: state
+    note: `Recommended department: ${department}`
   };
 };

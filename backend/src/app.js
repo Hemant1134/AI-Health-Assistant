@@ -1,23 +1,32 @@
 require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
-const connectDB = require("../src/db/connection");
-const chatRoutes = require("../src/routes/chat");
+const connectDB = require("./db/connection");
+const chatRoutes = require("./routes/chat");
+const sessionMiddleware = require("./middleware/session.middleware");
 
 const app = express();
+
 app.use(cors());
 app.use(express.json());
 
-// connect DB
-connectDB()
-  .then(() => console.log("MongoDB connected"))
-  .catch((e) => console.error("MongoDB err:", e.message));
+// Attach sessionId for every request
+app.use(sessionMiddleware);
 
-// routes
+// Routes
 app.use("/api/chat", chatRoutes);
 
-// health
+// Health check
 app.get("/health", (req, res) => res.json({ ok: true }));
 
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Server running on ${PORT}`));
+// Connect DB and start server
+connectDB()
+  .then(() => {
+    console.log("✅ MongoDB connected");
+    const PORT = process.env.PORT || 5000;
+    app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+  })
+  .catch((err) => {
+    console.error("❌ MongoDB connection error:", err.message);
+    process.exit(1);
+  });

@@ -49,3 +49,6 @@ dump.rdb
 
 # Mac system
 .DS_Store
+
+# Environment variables
+.env
