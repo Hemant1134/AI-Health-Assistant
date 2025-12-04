@@ -14,7 +14,9 @@ if (!process.env.GEMINI_API_KEY) {
  * Send a prompt to Gemini and get a text response.
  */
 async function sendChatPrompt(systemPrompt, userPrompt) {
-  if (!model) throw new Error("Gemini model not configured");
+  if (!model) {
+    throw new Error("Gemini model not configured");
+  }
 
   const prompt = `${systemPrompt}\n\nUser: ${userPrompt}`;
 

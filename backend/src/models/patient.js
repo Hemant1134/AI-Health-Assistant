@@ -12,7 +12,7 @@ const PatientSchema = new mongoose.Schema(
       allergies: String,
       emergency_contact: String
     },
-    symptoms: Object, // answers.fever, otherSymptoms etc.
+    symptoms: Object, // answers like { fever: {...}, otherSymptoms: "...", ... }
     summary: String,
     riskLevel: String
   },

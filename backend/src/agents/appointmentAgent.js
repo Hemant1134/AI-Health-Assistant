@@ -7,9 +7,13 @@ module.exports = async function appointmentAgent(state = {}) {
   const main = symptoms[0] || "general";
 
   let department = "General Medicine";
+
   if (main === "breathing_issue") department = "Pulmonology";
   if (main === "stomach_pain") department = "Gastroenterology";
   if (main === "headache") department = "Neurology";
+  if (main === "fever" || main === "cold" || main === "cough" || main === "body_pain") {
+    department = "General Medicine";
+  }
 
   const date = new Date(Date.now() + 24 * 60 * 60 * 1000);
   const formattedDate = date.toISOString().slice(0, 10);

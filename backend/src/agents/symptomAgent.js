@@ -8,12 +8,14 @@ const ALLOWED_FIELDS = [
   "city",
   "chronic_conditions",
   "allergies",
-  "emergency_contact",
+  "emergency_contact"
 ];
 
 /**
- * symptomAgent(text, state)
- * Deterministic symptom flow + AI-based personal form generation.
+ * Symptom agent:
+ * - Handles symptom intake
+ * - Drives state machine
+ * - Triggers AI-generated personal form
  */
 module.exports = async function symptomAgent(text, state = {}) {
   state.step = state.step || "symptom";
@@ -25,6 +27,7 @@ module.exports = async function symptomAgent(text, state = {}) {
   state.personalFormGenerated = !!state.personalFormGenerated;
 
   const t = (text || "").toLowerCase().trim();
+
   const askOnce = (key) => {
     if (!state.asked.includes(key)) state.asked.push(key);
   };
@@ -43,20 +46,20 @@ module.exports = async function symptomAgent(text, state = {}) {
         "Stomach pain",
         "Body pain",
         "Breathing issue",
-        "Other",
+        "Other"
       ],
-      update: state,
+      update: state
     };
   }
 
-  // detect symptom if none yet
+  // Detect main symptom if none yet
   if (!state.symptoms.length && t) {
     const detected = detectSymptom(t);
     state.symptoms.push(detected);
     state.answers[detected] = state.answers[detected] || {};
   }
 
-  const main = state.symptoms[0]; // drive flow by first symptom
+  const main = state.symptoms[0];
 
   // --- FEVER FLOW EXAMPLE ---
   if (main === "fever") {
@@ -69,7 +72,7 @@ module.exports = async function symptomAgent(text, state = {}) {
         type: "message",
         reply: "How long have you had the fever?",
         options: ["< 24 hours", "1–3 days", "> 3 days", "Not sure"],
-        update: state,
+        update: state
       };
     }
     if (!feverAns.duration && t && !isBotQuestion("fever_duration", state)) {
@@ -88,16 +91,12 @@ module.exports = async function symptomAgent(text, state = {}) {
           "99–100.9°F",
           "101–102°F",
           "> 102°F",
-          "Not measured",
+          "Not measured"
         ],
-        update: state,
+        update: state
       };
     }
-    if (
-      !feverAns.temperature &&
-      t &&
-      !isBotQuestion("fever_temperature", state)
-    ) {
+    if (!feverAns.temperature && t && !isBotQuestion("fever_temperature", state)) {
       feverAns.temperature = text;
     }
 
@@ -109,7 +108,7 @@ module.exports = async function symptomAgent(text, state = {}) {
         type: "message",
         reply: "Have you taken any medication for the fever?",
         options: ["Yes, and it helped", "Yes, no improvement", "No"],
-        update: state,
+        update: state
       };
     }
     if (!feverAns.meds && t && !isBotQuestion("fever_meds", state)) {
@@ -131,17 +130,13 @@ module.exports = async function symptomAgent(text, state = {}) {
         "Headache",
         "Body pain",
         "Breathing issue",
-        "No",
+        "No"
       ],
-      update: state,
+      update: state
     };
   }
 
-  if (
-    !state.answers.otherSymptoms &&
-    t &&
-    !isBotQuestion("other_symptoms", state)
-  ) {
+  if (!state.answers.otherSymptoms && t && !isBotQuestion("other_symptoms", state)) {
     state.answers.otherSymptoms = t.startsWith("no") ? "none" : text;
   }
 
@@ -158,16 +153,15 @@ module.exports = async function symptomAgent(text, state = {}) {
       type: "form",
       reply: "To complete your health profile, please fill these details.",
       form,
-      update: state,
+      update: state
     };
   }
 
   // fallback
   return {
     type: "message",
-    reply:
-      "Thanks, I’ve recorded your symptoms. Please fill your details to continue.",
-    update: state,
+    reply: "Thanks, I’ve recorded your symptoms. Please fill your details to continue.",
+    update: state
   };
 };
 
@@ -201,7 +195,7 @@ No extra keys, no comments, no text outside JSON.
 
     const userPrompt = `State: ${JSON.stringify({
       symptoms: state.symptoms,
-      answers: state.answers,
+      answers: state.answers
     })}`;
 
     const raw = await sendChatPrompt(systemPrompt, userPrompt);
@@ -214,11 +208,7 @@ No extra keys, no comments, no text outside JSON.
       if (m) parsed = JSON.parse(m[0]);
     }
 
-    if (
-      !parsed ||
-      !Array.isArray(parsed.fields) ||
-      parsed.fields.length === 0
-    ) {
+    if (!parsed || !Array.isArray(parsed.fields) || parsed.fields.length === 0) {
       return buildFormFromFieldNames(fallbackFields);
     }
 
@@ -254,7 +244,7 @@ function buildFormFromFieldNames(names, rawFields) {
 
   return {
     title: "Patient Details",
-    fields,
+    fields
   };
 }
 

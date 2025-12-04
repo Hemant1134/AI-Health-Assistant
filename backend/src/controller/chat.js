@@ -1,8 +1,10 @@
 const { getState, saveState } = require("../utils/state");
 const { normalizeResponse } = require("../utils/validation");
+
 const symptomAgent = require("../agents/symptomAgent");
 const summaryAgent = require("../agents/summaryAgent");
 const appointmentAgent = require("../agents/appointmentAgent");
+
 const Patient = require("../models/patient");
 const Appointment = require("../models/appointment");
 
@@ -29,27 +31,101 @@ exports.handleChat = async (req, res) => {
     state.personal = state.personal || {};
     state.asked = state.asked || [];
     state.completed = !!state.completed;
-    if (patientState.profileComplete) {
+    state.profileComplete = !!state.profileComplete;
+
+    // If already registered & not explicitly starting new chat
+    if (
+      state.profileComplete &&
+      (typeof message === "string" || typeof message === "number")
+    ) {
+      const txt = message.toString().toLowerCase().trim();
+
+      if (txt === "start new chat") {
+        // reset but keep same sessionId
+        state = {
+          symptoms: [],
+          answers: {},
+          personal: {},
+          asked: [],
+          completed: false,
+          profileComplete: false,
+          step: "symptom",
+          personalFormGenerated: false
+        };
+
+        await saveState(sessionId, state);
+
+        const resp = {
+          type: "message",
+          reply:
+            "New chat started. Tell me your main symptom to begin a fresh assessment.",
+          options: [
+            "Fever",
+            "Cough",
+            "Cold",
+            "Headache",
+            "Stomach pain",
+            "Body pain",
+            "Breathing issue",
+            "Other"
+          ],
+          update: state
+        };
+
+        return res.json({ sessionId, ...normalizeResponse(resp) });
+      }
+
+      if (txt === "book appointment") {
+        // For now: they already have appointment created; just echo info
+        const rec = state.recommendation;
+        const reply =
+          rec
+            ? `Your appointment recommendation:\nDepartment: ${rec.department}\nDoctor: ${rec.doctor}\nSuggested time: ${rec.date} at ${rec.time}`
+            : "Your details are saved. Our team will help you with an appointment.";
+
+        return res.json({
+          sessionId,
+          ...normalizeResponse({
+            type: "message",
+            reply,
+            options: ["Start new chat"],
+            update: state
+          })
+        });
+      }
+
+      // default: remind user they are registered
       return res.json({
-        type: "done",
-        reply: "You’re already registered. Start a new chat or get appointment ❤️",
-        options: ["Start new chat", "Book Appointment"]
+        sessionId,
+        ...normalizeResponse({
+          type: "done",
+          reply:
+            "You’re already registered. Choose an option below to continue ❤️",
+          options: ["Start new chat", "Book Appointment"],
+          update: state
+        })
       });
     }
 
     // CASE 1: form submission (personal details)
     if (message && typeof message === "object" && !Array.isArray(message)) {
-      // Filter only allowed fields
       const incoming = message || {};
       const cleaned = {};
+
+      // Filter only allowed fields
       for (const key of ALLOWED_PERSONAL_FIELDS) {
-        if (incoming[key] !== undefined && incoming[key] !== null && incoming[key] !== "") {
+        if (
+          incoming[key] !== undefined &&
+          incoming[key] !== null &&
+          incoming[key] !== ""
+        ) {
           cleaned[key] = String(incoming[key]);
         }
       }
 
       state.personal = { ...state.personal, ...cleaned };
       state.completed = true;
+      state.profileComplete = true;
       state.step = "summary";
 
       // Generate summary & appointment
