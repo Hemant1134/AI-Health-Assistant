@@ -23,3 +23,12 @@ export async function fetchHistory(sessionId) {
   );
   return res.json();
 }
+
+export async function getHistory() {
+  const res = await fetch("http://localhost:5002/api/history", {
+    method: "GET",
+    headers: { "Content-Type": "application/json" }
+  });
+
+  return res.json();
+}
