@@ -3,27 +3,32 @@
 import { Box, Typography, Divider, Avatar, Button } from "@mui/material";
 import { useEffect, useState, useContext } from "react";
 import { motion } from "framer-motion";
-import { getHistory } from "../lib/api";
+import { getHistory, logoutAPI } from "../lib/api";
 import { AuthContext } from "../context/AuthContext";
-import axios from "axios";
 
 const COLORS = ["#2563EB", "#0EA5E9", "#F97316", "#EC4899", "#22C55E"];
 
-export default function Sidebar() {
+export default function Sidebar({ onSelectChat, activeChat }) {
   const [history, setHistory] = useState([]);
-  const { setUser } = useContext(AuthContext);
+  const { user, setUser } = useContext(AuthContext);
 
   useEffect(() => {
     getHistory().then((h) => {
-      if (Array.isArray(h)) setHistory(h);
-      if (h && Array.isArray(h.history)) setHistory(h.history);
+      if (Array.isArray(h)) {
+        setHistory(h);
+      }
+
+      if (h && Array.isArray(h.history)) {
+        setHistory(h.history);
+      }
+      
     });
   }, []);
 
   const getColor = (i) => COLORS[i % COLORS.length];
 
   const handleLogout = async () => {
-    await axios.post("http://localhost:5002/api/logout", {}, { withCredentials: true });
+    await logoutAPI();
     setUser(null);
   };
 
@@ -38,21 +43,62 @@ export default function Sidebar() {
         color: "#fff",
       }}
     >
-      {/* HEADER */}
+      {/* ===== USER INFO HEADER ===== */}
+      {user && (
+        <Box
+          sx={{
+            p: 2,
+            borderBottom: "1px solid #7ca6ceff",
+            display: "flex",
+            gap: 1.3,
+            alignItems: "center",
+          }}
+        >
+          <Avatar
+            sx={{
+              width: 42,
+              height: 42,
+              bgcolor: "#0D67A8",
+              fontWeight: 600,
+              fontSize: 18,
+            }}
+          >
+            {user?.fullName?.charAt(0)?.toUpperCase()}
+          </Avatar>
+
+          <Box>
+            <Typography fontWeight={700} sx={{ fontSize: 14, color: "#fff" }}>
+              {user?.fullName}
+            </Typography>
+            <Typography
+              variant="caption"
+              sx={{ fontSize: 11, opacity: 0.85, color: "#D3E8FF" }}
+            >
+              Online
+            </Typography>
+          </Box>
+        </Box>
+      )}
+
+      {/* ===== HISTORY HEADER ===== */}
       <Box sx={{ p: 2, borderBottom: "1px solid #7ca6ceff" }}>
-        <Typography fontWeight={700} sx={{ fontSize: 16 }}>
+        <Typography fontWeight={700} sx={{ fontSize: 15 }}>
           🕒 Visit history
         </Typography>
-        <Typography variant="caption" sx={{ opacity: 0.9, fontSize: 11 }}>
+        <Typography
+          variant="caption"
+          sx={{ opacity: 0.9, fontSize: 11, color: "#E8F3FF" }}
+        >
           Previous diagnosis & suggestions
         </Typography>
       </Box>
 
-      {/* LIST */}
+      {/* ===== HISTORY LIST ===== */}
       <Box sx={{ flex: 1, overflowY: "auto", p: 1.3 }}>
         {history.map((h, i) => (
           <Box
             key={h._id || i}
+            onClick={() => onSelectChat && onSelectChat(h._id)}
             component={motion.div}
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
@@ -66,6 +112,8 @@ export default function Sidebar() {
               gap: 1.2,
               alignItems: "center",
               mb: 1,
+              backgroundColor:
+                activeChat === h._id ? "rgba(255,255,255,0.22)" : "transparent",
             }}
           >
             <Avatar
@@ -82,14 +130,14 @@ export default function Sidebar() {
             </Avatar>
 
             <Box sx={{ overflow: "hidden", color: "#fff" }}>
-              <Typography fontWeight={600} noWrap sx={{ fontSize: 14 }}>
+              <Typography fontWeight={600} noWrap sx={{ fontSize: 13 }}>
                 {h.personal?.name || "Unknown"}{" "}
                 {h.personal?.age && `• ${h.personal.age} yrs`}
               </Typography>
               <Typography
                 variant="body2"
                 noWrap
-                sx={{ opacity: 0.85, fontSize: 12 }}
+                sx={{ opacity: 0.85, fontSize: 11 }}
               >
                 {h.summary ||
                   "No summary available yet, complete a checkup to see here."}
@@ -98,18 +146,17 @@ export default function Sidebar() {
           </Box>
         ))}
 
-        {/* EMPTY STATE */}
         {history.length === 0 && (
           <Typography
             variant="body2"
-            sx={{ mt: 3, textAlign: "center", opacity: 0.75 }}
+            sx={{ mt: 3, textAlign: "center", opacity: 0.75, color: "#fff" }}
           >
             No previous visits yet.
           </Typography>
         )}
       </Box>
 
-      {/* LOGOUT */}
+      {/* ===== LOGOUT BUTTON ===== */}
       <Box sx={{ p: 2, borderTop: "1px solid #A8D5FF" }}>
         <Button
           fullWidth

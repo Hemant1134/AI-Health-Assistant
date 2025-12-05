@@ -1,28 +1,30 @@
 "use client";
-
-import { Box } from "@mui/material";
-import { useContext, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useContext, useEffect, useState } from "react";
 import { AuthContext } from "../../context/AuthContext";
-
+import { useRouter } from "next/navigation";
 import Sidebar from "../../components/Sidebar";
 import ChatWindow from "../../components/ChatWindow";
+import { Box } from "@mui/material";
 
 export default function ChatPage() {
   const { user, loading } = useContext(AuthContext);
+  const [selectedHistory, setSelectedHistory] = useState(null);
   const router = useRouter();
 
   useEffect(() => {
     if (!loading && !user) router.push("/");
-  }, [loading, user]);
+  }, [loading, user, router]);
 
-  if (loading) return <div>Loading...</div>;
+  if (loading) return null;
   if (!user) return null;
 
   return (
     <Box sx={{ height: "100vh", display: "flex" }}>
-      <Sidebar />
-      <ChatWindow />
+      {/* Pass action to Sidebar */}
+      <Sidebar onSelectChat={setSelectedHistory} activeChat={selectedHistory} />
+
+      {/* Pass selected history to Chat */}
+      <ChatWindow selectedHistory={selectedHistory} />
     </Box>
   );
 }

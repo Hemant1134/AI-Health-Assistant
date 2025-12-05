@@ -7,6 +7,7 @@ const BASE_URL = "http://localhost:5002/api";
 
 // Send user message
 export async function sendMessage(message, _state, sessionId) {
+  debugger
   const res = await fetch(`${BASE_URL}/chat`, {
     method: "POST",
     headers: {
@@ -14,6 +15,7 @@ export async function sendMessage(message, _state, sessionId) {
       ...(sessionId ? { "x-session-id": sessionId } : {}),
     },
     body: JSON.stringify({ message }),
+    credentials: "include",
   });
 
   return res.json();
@@ -28,6 +30,7 @@ export async function getHistory(sessionId) {
         "Content-Type": "application/json",
         ...(sessionId ? { "x-session-id": sessionId } : {}),
       },
+      credentials: "include",
     });
     return res.json();
   } catch (e) {
@@ -35,6 +38,15 @@ export async function getHistory(sessionId) {
     return [];
   }
 }
+
+
+export async function getChatDetails(id) {
+  const res = await fetch(`${BASE_URL}/history/${id}/details`, {
+    credentials: "include",
+  });
+  return res.json();
+}
+
 
 // ==================== AUTH APIs ====================
 

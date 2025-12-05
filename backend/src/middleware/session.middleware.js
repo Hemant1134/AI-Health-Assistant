@@ -6,12 +6,18 @@ const { v4: uuidv4 } = require("uuid");
  * - or body.sessionId
  * - or generate new
  */
-module.exports = function sessionMiddleware(req, res, next) {
-  let sid = req.headers["x-session-id"] || req.body.sessionId;
-  if (!sid) sid = uuidv4();
+module.exports = function (req, res, next) {
+  let sessionId = req.headers["x-session-id"] || req.cookies?.sessionId;
 
-  req.sessionId = sid;
-  res.setHeader("x-session-id", sid);
+  if (!sessionId) {
+    sessionId = Date.now().toString();
+    res.cookie("sessionId", sessionId, {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: false
+    });
+  }
 
+  req.sessionId = sessionId;
   next();
 };

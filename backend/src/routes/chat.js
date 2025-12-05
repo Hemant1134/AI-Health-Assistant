@@ -3,6 +3,6 @@ const { handleChat } = require("../controller/chat");
 
 const router = express.Router();
 
-router.post("/", handleChat);
+router.post("/",                    handleChat);
 
 module.exports = router;
