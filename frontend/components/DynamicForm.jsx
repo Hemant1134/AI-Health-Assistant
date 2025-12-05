@@ -10,12 +10,10 @@ export default function DynamicForm({ schema, onSubmit }) {
 
   const [form, setForm] = useState(defaults);
 
+  const handleSubmit = () => onSubmit(form);
+
   const handleChange = (name, value) => {
     setForm((prev) => ({ ...prev, [name]: value }));
-  };
-
-  const handleSubmit = () => {
-    onSubmit(form);
   };
 
   return (
@@ -26,9 +24,9 @@ export default function DynamicForm({ schema, onSubmit }) {
       sx={{
         p: 2,
         mt: 2,
-        bgcolor: "#202c33",
         borderRadius: 3,
-        border: "1px solid #2a3942",
+        bgcolor: "#ffffff",
+        border: "1px solid #dbeafe",
       }}
     >
       {schema.fields?.map((f) =>
@@ -45,9 +43,7 @@ export default function DynamicForm({ schema, onSubmit }) {
             onChange={(e) => handleChange(f.name, e.target.value)}
           >
             {f.options?.map((op) => (
-              <MenuItem key={op} value={op}>
-                {op}
-              </MenuItem>
+              <MenuItem key={op} value={op}>{op}</MenuItem>
             ))}
           </TextField>
         ) : (
@@ -65,12 +61,7 @@ export default function DynamicForm({ schema, onSubmit }) {
         )
       )}
 
-      <Button
-        fullWidth
-        variant="contained"
-        onClick={handleSubmit}
-        sx={{ mt: 1, bgcolor: "#00A884", textTransform: "none" }}
-      >
+      <Button fullWidth variant="contained" sx={{ textTransform: "none", bgcolor: "#2563EB" }} onClick={handleSubmit}>
         Submit
       </Button>
     </Box>

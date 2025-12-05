@@ -1,26 +1,31 @@
 require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
+const cookieParser = require("cookie-parser");
 const connectDB = require("./db/connection");
 const chatRoutes = require("./routes/chat");
 const sessionMiddleware = require("./middleware/session.middleware");
 const historyRoutes = require("./routes/history.routes");
+const authRoutes = require("./routes/auth.routes");
 
 const app = express();
 
+//  Correct CORS for cookies + login
 app.use(cors({
-  origin: "*",
+  origin: "http://localhost:3000",
+  credentials: true,
   methods: "GET,POST,PUT,DELETE",
   allowedHeaders: "Content-Type, Authorization"
 }));
 
-
 app.use(express.json());
+app.use(cookieParser());
 
-// Attach sessionId for every request
+// Attach sessionId for chat messages
 app.use(sessionMiddleware);
 
 // Routes
+app.use("/api", authRoutes); 
 app.use("/api/chat", chatRoutes);
 app.use("/api/history", historyRoutes);
 

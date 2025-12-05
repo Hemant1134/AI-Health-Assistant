@@ -1,17 +1,17 @@
 "use client";
-
-import { useState } from "react";
+import { useContext } from "react";
+import { AuthContext } from "@/context/AuthContext";
 import { Box } from "@mui/material";
-import AuthScreen from "../components/AuthScreen";
-import Sidebar from "../components/Sidebar";
-import ChatWindow from "../components/ChatWindow";
+import AuthScreen from "@/components/AuthScreen";
+import Sidebar from "@/components/Sidebar";
+import ChatWindow from "@/components/ChatWindow";
 
 export default function Page() {
-  const [isAuthed, setIsAuthed] = useState(false);
+  const { user, loading } = useContext(AuthContext);
 
-  if (!isAuthed) {
-    return <AuthScreen onAuthenticated={() => setIsAuthed(true)} />;
-  }
+  if (loading) return <div>Loading...</div>;
+
+  if (!user) return <AuthScreen />;          // not logged in → stay login
 
   return (
     <Box sx={{ height: "100vh", display: "flex" }}>

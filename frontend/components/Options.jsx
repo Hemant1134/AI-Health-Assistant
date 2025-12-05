@@ -14,16 +14,14 @@ export default function Options({ options, onSelect }) {
           variant="outlined"
           onClick={() => onSelect(opt)}
           sx={{
-            borderColor: "#00A884",
-            color: "#e9edef",
+            borderColor: "#2563EB",
+            color: "#2563EB",
             textTransform: "none",
             fontSize: 13,
             px: 1.6,
             py: 0.4,
             borderRadius: 2,
-            "&:hover": {
-              bgcolor: "rgba(0,168,132,0.12)",
-            },
+            "&:hover": { bgcolor: "rgba(37,99,235,0.12)" },
           }}
         >
           {opt}

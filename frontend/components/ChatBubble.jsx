@@ -26,7 +26,7 @@ export default function ChatBubble({ sender, text }) {
       sx={{
         display: "flex",
         justifyContent: isAI ? "flex-start" : "flex-end",
-        mb: 1,
+        mb: 1.2,
       }}
     >
       <Typography
@@ -34,13 +34,13 @@ export default function ChatBubble({ sender, text }) {
           p: 1.2,
           px: 2,
           maxWidth: "82%",
-          borderRadius: isAI ? "16px 16px 16px 4px" : "16px 16px 4px 16px",
-          bgcolor: isAI ? "rgba(30,64,175,0.7)" : "primary.main",
-          backdropFilter: "blur(8px)",
-          color: "#fff",
+          borderRadius: isAI ? "18px 18px 18px 4px" : "18px 18px 4px 18px",
+          bgcolor: isAI ? "#E8EDFF" : "#2563EB",
+          color: isAI ? "#1e3a8a" : "#fff",
+          border: isAI ? "1px solid #bfdbfe" : "none",
           fontSize: 14,
-          lineHeight: 1.4,
           whiteSpace: "pre-wrap",
+          lineHeight: 1.4,
         }}
       >
         {formatText(text)}
