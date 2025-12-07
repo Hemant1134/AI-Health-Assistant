@@ -1,3 +1,5 @@
+// backend/src/controllers/chat.controller.js (or similar path)
+
 const { getState, saveState } = require("../utils/state");
 const { normalizeResponse } = require("../utils/validation");
 const symptomAgent = require("../agents/symptomAgent");
@@ -6,6 +8,9 @@ const appointmentAgent = require("../agents/appointmentAgent");
 const { buildAdvice } = require("../utils/advice");
 const Patient = require("../models/patient");
 const Appointment = require("../models/appointment");
+
+// ✅ NEW – smart AI fallback
+const aiDoctorFollowup = require("../agents/aiDoctorAgent");
 
 const SAFE_FIELDS = [
   "name",
@@ -17,15 +22,73 @@ const SAFE_FIELDS = [
   "emergency_contact",
 ];
 
+// static options we already show on “Start new chat”
+const KNOWN_MAIN_SYMPTOMS = [
+  "fever",
+  "cough",
+  "cold",
+  "headache",
+  "stomach pain",
+  "body pain",
+  "breathing issue",
+  "other",
+];
+
+
+// 🔍 Detect common greetings
+const isGreeting = (text = "") => {
+  const greetings = [
+    "hi", "hello", "hey", "yo", "hola", "good morning",
+    "good evening", "good night", "namaste", "sup"
+  ];
+
+  const cleaned = text.toLowerCase().trim();
+  return greetings.some((g) => cleaned.startsWith(g));
+};
+
 exports.handleChat = async (req, res) => {
   try {
     const sessionId = req.sessionId;
     const { message } = req.body;
 
     let state = (await getState(sessionId)) || {};
+    const text = (message || "").toString().trim();
+
     state.symptoms = state.symptoms || [];
     state.answers = state.answers || {};
     state.personal = state.personal || {};
+
+    // Reset on greeting (if last session was completed or partially stored)
+    if ((!state || Object.keys(state).length === 0) || isGreeting(message)) {
+      state = {
+        step: "symptom",
+        asked: [],
+        symptoms: [],
+        answers: {},
+        personal: {},
+        completed: false,
+        personalFormGenerated: false,
+      };
+      await saveState(sessionId, state);
+    }
+
+     // NEW: Greeting Handler
+    if (isGreeting(text)) {
+      return res.json({
+        reply: "👋 Hello! I’m here to help your health. What symptom or problem are you facing?",
+        type: "message",
+        options: [
+          "Fever",
+          "Cough",
+          "Cold",
+          "Headache",
+          "Stomach pain",
+          "Body pain",
+          "Breathing issue",
+          "Something else"
+        ]
+      });
+    }
 
     // Restart
     if (message === "Start new chat") {
@@ -70,7 +133,9 @@ exports.handleChat = async (req, res) => {
       });
     }
 
-    // FORM SUBMISSION (personal details)
+    // ===========================
+    // 🔹 FORM SUBMISSION (personal details)
+    // ===========================
     if (message && typeof message === "object" && !Array.isArray(message)) {
       const cleaned = {};
       for (const key of SAFE_FIELDS) {
@@ -135,8 +200,47 @@ exports.handleChat = async (req, res) => {
       });
     }
 
-    // NORMAL CHAT → symptom agent
-    const text = (message || "").toString();
+    // ===========================
+    // 🔹 NORMAL CHAT FLOW
+    // ===========================
+
+    // ✅ 1) FIRST MESSAGE WITH UNKNOWN SYMPTOM → let Gemini handle it
+    const hasMainSymptom = !!state.answers.mainSymptom;
+    const lower = text.toLowerCase();
+
+    const isKnownMainSymptom = KNOWN_MAIN_SYMPTOMS.includes(lower);
+
+    if (!hasMainSymptom && text && !isKnownMainSymptom) {
+      // Treat user's free-text as main symptom, but let AI drive the conversation
+      state.answers.mainSymptom = text;
+      await saveState(sessionId, state);
+
+      const aiResult = await aiDoctorFollowup(text, state);
+
+      const baseReply =
+        `Got it, you’re feeling "${text}".\n` +
+        aiResult.reply +
+        `\n\n(Please remember this chat is informational only and not a diagnosis.)`;
+
+      const responsePayload = {
+        type: "message",
+        reply: baseReply,
+        options: aiResult.options && aiResult.options.length ? aiResult.options : [],
+        update: state,
+      };
+
+      // If emergency flagged, send it back so frontend can show a special banner/message
+      if (aiResult.emergency && aiResult.emergency.flag) {
+        responsePayload.emergency = aiResult.emergency;
+      }
+
+      return res.json({
+        sessionId,
+        ...normalizeResponse(responsePayload),
+      });
+    }
+
+    // ✅ 2) OTHERWISE → use your existing symptomAgent rules
     const agentResp = await symptomAgent(text, state);
 
     const updatedState = { ...state, ...(agentResp.update || {}) };
@@ -145,6 +249,7 @@ exports.handleChat = async (req, res) => {
     const safeResp = normalizeResponse(agentResp);
     safeResp.update = updatedState;
 
+    // In future, we can still use aiDoctorFollowup here if symptomAgent says "fallbackToAI".
     return res.json({ sessionId, ...safeResp });
   } catch (err) {
     console.error("CHAT ERROR:", err);
